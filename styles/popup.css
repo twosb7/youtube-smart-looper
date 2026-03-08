@@ -1,0 +1,81 @@
+:root {
+  color-scheme: dark;
+  --bg: #111316;
+  --surface: rgba(28, 31, 37, 0.95);
+  --surface-border: rgba(255, 255, 255, 0.1);
+  --text: #f5f7fa;
+  --muted: rgba(245, 247, 250, 0.68);
+  --accent: #3ea6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top right, rgba(62, 166, 255, 0.16), transparent 36%),
+    linear-gradient(180deg, #181b20 0%, var(--bg) 100%);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.popup {
+  padding: 16px;
+}
+
+.popup__header {
+  margin-bottom: 12px;
+}
+
+.popup__header h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+.popup__status {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.panel {
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+}
+
+.panel + .panel {
+  margin-top: 12px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.row + .row {
+  margin-top: 8px;
+}
+
+.label {
+  color: var(--muted);
+}
+
+.value {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.helper p {
+  margin: 0;
+  color: var(--muted);
+}

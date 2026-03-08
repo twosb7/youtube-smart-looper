@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>YouTube Smart Looper</title>
+    <link rel="stylesheet" href="styles/popup.css">
+    <script src="src/shared.js" defer></script>
+    <script src="src/popup.js" defer></script>
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup__header">
+        <h1>YouTube Smart Looper</h1>
+        <p id="statusText" class="popup__status">Loading current tab...</p>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <span class="label">Video</span>
+          <span id="videoIdValue" class="value">-</span>
+        </div>
+        <div class="row">
+          <span class="label">Loop</span>
+          <span id="loopValue" class="value">Unknown</span>
+        </div>
+        <div class="row">
+          <span class="label">Panel</span>
+          <span id="panelPlacementValue" class="value">-</span>
+        </div>
+      </section>
+
+      <section class="panel helper">
+        <p>
+          Primary controls now appear in the YouTube player controls. This popup is only for quick status.
+        </p>
+      </section>
+    </main>
+  </body>
+  </html>
