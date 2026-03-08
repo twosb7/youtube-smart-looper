@@ -75,12 +75,30 @@ test("parseTimeInput rejects invalid input", () => {
   assert.strictEqual(shared.parseTimeInput("abc"), null);
 });
 
-test("formatTimeInputDraft right-aligns digit input into time", () => {
-  assert.strictEqual(shared.formatTimeInputDraft("1"), "00:01");
-  assert.strictEqual(shared.formatTimeInputDraft("12"), "00:12");
-  assert.strictEqual(shared.formatTimeInputDraft("123"), "01:23");
-  assert.strictEqual(shared.formatTimeInputDraft("1234"), "12:34");
-  assert.strictEqual(shared.formatTimeInputDraft("12345"), "01:23:45");
+test("sanitizeTimeInputDraft keeps sequential digit entry stable", () => {
+  let draft = "";
+
+  for (const character of "600") {
+    draft = shared.sanitizeTimeInputDraft(draft + character);
+  }
+
+  assert.strictEqual(draft, "600");
+  assert.strictEqual(shared.parseTimeInput(draft), 360);
+
+  draft = "";
+
+  for (const character of "800") {
+    draft = shared.sanitizeTimeInputDraft(draft + character);
+  }
+
+  assert.strictEqual(draft, "800");
+  assert.strictEqual(shared.parseTimeInput(draft), 480);
+});
+
+test("sanitizeTimeInputDraft preserves manual colon input and strips noise", () => {
+  assert.strictEqual(shared.sanitizeTimeInputDraft("1:02:03"), "1:02:03");
+  assert.strictEqual(shared.sanitizeTimeInputDraft("ab12:3c4"), "12:34");
+  assert.strictEqual(shared.sanitizeTimeInputDraft(":::12::34::56"), "12:34:56");
 });
 
 test("parseTimeInput accepts digit-only shorthand input", () => {

@@ -709,14 +709,10 @@
     });
     element.addEventListener("input", (event) => {
       stopInteractionPropagation(event);
-      const formattedValue = shared.formatTimeInputDraft(element.value);
-      if (!formattedValue && !element.value.replace(/\D/g, "")) {
-        element.value = "";
-        return;
-      }
+      const sanitizedValue = shared.sanitizeTimeInputDraft(element.value);
 
-      if (formattedValue) {
-        element.value = formattedValue;
+      if (sanitizedValue !== element.value) {
+        element.value = sanitizedValue;
         const nextCaret = element.value.length;
         element.setSelectionRange(nextCaret, nextCaret);
       }

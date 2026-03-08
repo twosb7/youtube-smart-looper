@@ -161,6 +161,41 @@
     return formatTime(hours * 3600 + minutes * 60 + seconds);
   }
 
+  function sanitizeTimeInputDraft(value) {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    let sanitized = "";
+    let digitCount = 0;
+    let colonCount = 0;
+
+    for (const character of value) {
+      if (/\d/.test(character)) {
+        if (digitCount >= 6) {
+          continue;
+        }
+
+        sanitized += character;
+        digitCount += 1;
+        continue;
+      }
+
+      if (character !== ":") {
+        continue;
+      }
+
+      if (!sanitized || sanitized[sanitized.length - 1] === ":" || colonCount >= 2) {
+        continue;
+      }
+
+      sanitized += character;
+      colonCount += 1;
+    }
+
+    return sanitized;
+  }
+
   return {
     MESSAGE_TYPES,
     createDefaultState,
@@ -170,6 +205,7 @@
     normalizePersistedState,
     formatTime,
     formatTimeInputDraft,
+    sanitizeTimeInputDraft,
     parseTimeInput,
   };
 });
