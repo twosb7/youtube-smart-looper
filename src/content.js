@@ -18,7 +18,6 @@
   const MUTATION_DEBOUNCE_MS = 150;
   const FULL_LOOP_WRAP_THRESHOLD_SECONDS = 0.2;
   const CONTROL_HOST_ID = "youtube-smart-looper-root";
-  const DEBUG_MARKER_ID = "youtube-smart-looper-debug";
   const LOOP_LIMIT_OPTIONS = [null, 1, 3, 5, 10];
 
   const runtime = {
@@ -42,7 +41,6 @@
     abPopoverHost: null,
     abPopoverShadowRoot: null,
     abPopoverElements: null,
-    debugMarker: null,
     debugStatus: "boot",
     debugStatusText: "",
     isTogglePending: false,
@@ -60,40 +58,6 @@
     console.log("[YouTube Smart Looper]", message, details);
   }
 
-  function ensureDebugMarker() {
-    if (runtime.debugMarker && runtime.debugMarker.isConnected) {
-      return runtime.debugMarker;
-    }
-
-    const marker = document.createElement("div");
-    marker.id = DEBUG_MARKER_ID;
-    marker.setAttribute("data-youtube-smart-looper-debug", "true");
-    marker.style.position = "fixed";
-    marker.style.left = "12px";
-    marker.style.bottom = "12px";
-    marker.style.zIndex = "2147483647";
-    marker.style.padding = "6px 8px";
-    marker.style.borderRadius = "999px";
-    marker.style.background = "rgba(255, 69, 58, 0.92)";
-    marker.style.color = "#fff";
-    marker.style.font = '600 11px/1.2 "SF Pro Text", "Segoe UI", sans-serif';
-    marker.style.boxShadow = "0 8px 24px rgba(0, 0, 0, 0.28)";
-    marker.style.border = "1px solid rgba(255, 255, 255, 0.24)";
-    marker.style.pointerEvents = "none";
-    marker.style.maxWidth = "220px";
-    marker.style.whiteSpace = "nowrap";
-    marker.style.overflow = "hidden";
-    marker.style.textOverflow = "ellipsis";
-    runtime.debugMarker = marker;
-
-    const target = document.body || document.documentElement;
-    if (target) {
-      target.appendChild(marker);
-    }
-
-    return marker;
-  }
-
   function setDebugStatus(status, details) {
     const nextText = details ? "YSL " + status + " " + details : "YSL " + status;
     if (runtime.debugStatusText === nextText) {
@@ -102,11 +66,6 @@
 
     runtime.debugStatus = status;
     runtime.debugStatusText = nextText;
-
-    const marker = ensureDebugMarker();
-    if (marker) {
-      marker.textContent = nextText;
-    }
 
     debugLog(status, details);
   }
@@ -365,6 +324,17 @@
         continue;
       }
 
+      const matchRect = match.getBoundingClientRect();
+      const computedStyle = window.getComputedStyle(match);
+      if (
+        matchRect.width < 20 ||
+        matchRect.height < 20 ||
+        computedStyle.display === "none" ||
+        computedStyle.visibility === "hidden"
+      ) {
+        continue;
+      }
+
       const parentContainer = match.parentElement;
       if (parentContainer instanceof HTMLElement && rightControls.contains(parentContainer)) {
         anchor = match;
@@ -374,8 +344,7 @@
     }
 
     if (!(anchor instanceof HTMLElement)) {
-      anchor = rightControls.firstElementChild instanceof HTMLElement ? rightControls.firstElementChild : null;
-      container = rightControls;
+      return null;
     }
 
     return {
@@ -881,7 +850,7 @@
     const mountTarget = chooseControlBarMountTarget(video);
 
     if (!mountTarget || !(mountTarget.container instanceof HTMLElement)) {
-      return false;
+      return "pending";
     }
 
     const host = ensureControlHost();
@@ -979,7 +948,19 @@
       return;
     }
 
-    if (!mountControlsInPlayer(runtime.currentVideo)) {
+    const mountResult = mountControlsInPlayer(runtime.currentVideo);
+    if (mountResult === true) {
+      updateControls();
+      return;
+    }
+
+    if (mountResult === "pending") {
+      setDebugStatus("mount:pending");
+      updateControls();
+      return;
+    }
+
+    if (!mountResult) {
       mountFallbackControls();
     }
 

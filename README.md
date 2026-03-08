@@ -18,6 +18,13 @@ English version is available after the Korean section.
 
 popup은 보조 UI이고, 실제 동작과 메인 UI는 content script가 담당합니다.
 
+### 빠른 설치
+
+가장 쉬운 방법은 GitHub Release에서 ZIP을 받아서 설치하는 것입니다.
+
+- Release 페이지: [v0.1.0](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.0)
+- ZIP 다운로드: [youtube-smart-looper-v0.1.0.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.0/youtube-smart-looper-v0.1.0.zip)
+
 ### 주요 기능
 
 - 최신 YouTube watch 페이지 대응
@@ -38,11 +45,18 @@ popup은 보조 UI이고, 실제 동작과 메인 UI는 content script가 담당
 
 현재는 Chrome에서 수동 설치 방식으로 사용하는 것을 기준으로 합니다.
 
-1. 이 저장소를 ZIP으로 받거나 clone합니다
-2. `chrome://extensions`를 엽니다
-3. `개발자 모드`를 켭니다
-4. `압축해제된 확장 프로그램을 로드합니다`를 누릅니다
-5. 이 프로젝트 폴더를 선택합니다
+1. Release ZIP을 다운로드하거나 저장소를 clone합니다
+2. ZIP을 받았다면 압축을 풉니다
+3. `chrome://extensions`를 엽니다
+4. `개발자 모드`를 켭니다
+5. `압축해제된 확장 프로그램을 로드합니다`를 누릅니다
+6. 압축을 푼 폴더 또는 프로젝트 폴더를 선택합니다
+
+설치 후:
+
+1. YouTube watch 페이지를 엽니다
+2. 플레이어 오른쪽 컨트롤 영역에서 Smart Looper 버튼을 확인합니다
+3. `Loop`, `A-B`, 반복 횟수 제한 기능을 사용합니다
 
 ### 프로젝트 구조
 
@@ -101,6 +115,13 @@ It adds lightweight in-player controls for:
 
 The popup is secondary. The content script is the main UI and loop controller.
 
+### Quick Install
+
+The easiest way is to download the release ZIP and load it in Chrome.
+
+- Release page: [v0.1.0](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.0)
+- ZIP download: [youtube-smart-looper-v0.1.0.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.0/youtube-smart-looper-v0.1.0.zip)
+
 ### Features
 
 - Works on modern YouTube watch pages
@@ -121,11 +142,18 @@ The popup is secondary. The content script is the main UI and loop controller.
 
 This project is currently intended for manual installation in Chrome.
 
-1. Download this repository as a ZIP, or clone it
-2. Open `chrome://extensions`
-3. Enable `Developer mode`
-4. Click `Load unpacked`
-5. Select the project folder
+1. Download the release ZIP or clone this repository
+2. If you downloaded the ZIP, extract it
+3. Open `chrome://extensions`
+4. Enable `Developer mode`
+5. Click `Load unpacked`
+6. Select the extracted folder or the project folder
+
+After installation:
+
+1. Open a YouTube watch page
+2. Find the Smart Looper controls near the player controls
+3. Use `Loop`, `A-B`, and the repeat limit controls
 
 ### Project Structure
 

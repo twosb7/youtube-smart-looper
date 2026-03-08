@@ -88,14 +88,6 @@
         void ensureOpenYouTubeTabsInjected();
       });
 
-      api.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-        if (changeInfo.status !== "complete") {
-          return;
-        }
-
-        void ensureTabInjected(Object.assign({}, tab, { id: tabId }));
-      });
-
       api.tabs.onActivated.addListener(async (activeInfo) => {
         const tab = await api.tabs.get(activeInfo.tabId);
         void ensureTabInjected(tab);
