@@ -58,6 +58,22 @@ test("normalizePersistedState disables invalid legacy A-B ranges", () => {
   });
 });
 
+test("normalizePersistedState preserves a zero remaining loop count", () => {
+  const normalized = shared.normalizePersistedState(
+    { fullLoopEnabled: true, abLoopEnabled: false, loopLimit: 0 },
+    { duration: 120 }
+  );
+
+  assert.deepStrictEqual(normalized, {
+    fullLoopEnabled: true,
+    abLoopEnabled: false,
+    startTime: null,
+    endTime: null,
+    loopLimit: 0,
+    completedLoops: 0,
+  });
+});
+
 test("formatTime returns mm:ss for whole seconds", () => {
   assert.strictEqual(shared.formatTime(125), "02:05");
 });

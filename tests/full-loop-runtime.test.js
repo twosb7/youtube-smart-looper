@@ -38,6 +38,22 @@ test("restartVideoFromBeginning rewinds before attempting playback", async () =>
   assert.deepStrictEqual(calls, ["play"]);
 });
 
+test("restartVideoAtTime seeks and resumes playback", async () => {
+  const calls = [];
+  const video = {
+    currentTime: 42,
+    play() {
+      calls.push("play");
+      return Promise.resolve();
+    },
+  };
+
+  await fullLoopRuntime.restartVideoAtTime(video, 7);
+
+  assert.strictEqual(video.currentTime, 7);
+  assert.deepStrictEqual(calls, ["play"]);
+});
+
 test("shouldWrapToBeginning returns true near the natural end of the video", () => {
   const shouldWrap = fullLoopRuntime.shouldWrapToBeginning({
     fullLoopEnabled: true,

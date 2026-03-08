@@ -18,7 +18,6 @@
   const MUTATION_DEBOUNCE_MS = 150;
   const FULL_LOOP_WRAP_THRESHOLD_SECONDS = 0.2;
   const CONTROL_HOST_ID = "youtube-smart-looper-root";
-  const LOOP_LIMIT_OPTIONS = [null, 1, 3, 5, 10];
 
   const runtime = {
     currentUrl: location.href,
@@ -113,6 +112,15 @@
 
   function getAbStateValue(kind) {
     return kind === "start" ? runtime.persistedState.startTime : runtime.persistedState.endTime;
+  }
+
+  function getDisplayedLoopCount(state) {
+    const loopLimit = Number(state && state.loopLimit);
+    if (!Number.isFinite(loopLimit) || loopLimit < 0) {
+      return null;
+    }
+
+    return Math.floor(loopLimit);
   }
 
   function clampAbTimeToDuration(value) {
@@ -293,15 +301,20 @@
     setDebugStatus("loop:wrap", "mode=" + loopEngine.getActiveLoopMode(runtime.persistedState));
 
     runtime.isProgrammaticWrapInProgress = true;
-    runtime.currentVideo.currentTime = targetTime;
+    void fullLoopRuntime.restartVideoAtTime(runtime.currentVideo, targetTime).catch(() => {});
 
     const activeMode = loopEngine.getActiveLoopMode(runtime.persistedState);
     const previousEnabled = runtime.persistedState.fullLoopEnabled;
+    const previousLoopLimit = runtime.persistedState.loopLimit;
     runtime.persistedState = loopEngine.recordLoopIteration(runtime.persistedState);
     applyLoopSettingsToCurrentVideo();
     updateControls();
 
-    if (runtime.persistedState.fullLoopEnabled !== previousEnabled || activeMode === "ab") {
+    if (
+      runtime.persistedState.fullLoopEnabled !== previousEnabled ||
+      runtime.persistedState.loopLimit !== previousLoopLimit ||
+      activeMode === "ab"
+    ) {
       void persistCurrentState();
     }
 
@@ -311,12 +324,32 @@
   }
 
   function handleVideoEnded() {
-    if (!runtime.currentVideo || !runtime.persistedState.fullLoopEnabled) {
+    if (!runtime.currentVideo || !runtime.persistedState.fullLoopEnabled || runtime.isProgrammaticWrapInProgress) {
       return;
     }
 
     const activeMode = loopEngine.getActiveLoopMode(runtime.persistedState);
     const loopLimit = loopEngine.getNormalizedLoopLimit(runtime.persistedState);
+
+    if (loopLimit === 0) {
+      const duration = Number(runtime.currentVideo.duration);
+      const currentTime = Number(runtime.currentVideo.currentTime);
+
+      if (
+        Number.isFinite(duration) &&
+        Number.isFinite(currentTime) &&
+        currentTime < Math.max(0, duration - FULL_LOOP_WRAP_THRESHOLD_SECONDS)
+      ) {
+        return;
+      }
+
+      runtime.persistedState.fullLoopEnabled = false;
+      runtime.persistedState.loopLimit = null;
+      applyLoopSettingsToCurrentVideo();
+      updateControls();
+      void persistCurrentState();
+      return;
+    }
 
     if (activeMode === "full" && loopLimit === null) {
       return;
@@ -330,7 +363,7 @@
     });
 
     if (Number.isFinite(targetTime)) {
-      runtime.currentVideo.currentTime = targetTime;
+      void fullLoopRuntime.restartVideoAtTime(runtime.currentVideo, targetTime).catch(() => {});
     }
   }
 
@@ -444,24 +477,33 @@
       <style>
         :host {
           color-scheme: dark;
+          display: flex;
+          align-self: stretch;
+          align-items: center;
+          height: 38px;
+          vertical-align: top;
         }
 
         .toolbar {
           position: relative;
           display: inline-flex;
           align-items: center;
+          height: 38px;
           gap: 0;
           padding: 0;
           pointer-events: auto;
+          transform: translateY(3px);
         }
 
         .icon-button {
           position: relative;
-          width: 36px;
-          height: 36px;
+          flex: 0 0 48px;
+          width: 48px;
+          height: 38px;
+          min-height: 38px;
           line-height: 0;
           border: 0;
-          border-radius: 18px;
+          border-radius: 0;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -475,19 +517,37 @@
           user-select: none;
           -webkit-user-select: none;
           -webkit-tap-highlight-color: transparent;
-          transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+          transition: color 120ms ease, opacity 120ms ease;
         }
 
-        .icon-button:hover {
-          background: rgba(255, 255, 255, 0.12);
+        .icon-button::before {
+          content: "";
+          position: absolute;
+          top: 4px;
+          right: 0;
+          bottom: 4px;
+          left: 0;
+          border-radius: 20px;
+          background: rgba(255, 255, 255, 0);
+          transition: background-color 120ms ease, opacity 120ms ease;
+          pointer-events: none;
+        }
+
+        .icon-button:hover::before {
+          background: rgba(255, 255, 255, 0.11);
+        }
+
+        .icon-button[data-active="true"]::before {
+          background: rgba(255, 255, 255, 0.14);
         }
 
         .icon-button[data-active="true"] {
-          background: rgba(255, 255, 255, 0.18);
           color: rgba(255, 255, 255, 1);
         }
 
         .icon-button svg {
+          position: relative;
+          z-index: 1;
           width: 24px;
           height: 24px;
           display: block;
@@ -499,14 +559,66 @@
         }
 
         .limit-label {
-          font: 700 16px/1 "SF Pro Display", "Segoe UI", sans-serif;
+          position: relative;
+          z-index: 1;
+          font: 700 18px/1 "SF Pro Display", "Segoe UI", sans-serif;
           letter-spacing: 0.01em;
+          transform: translateY(1px);
+        }
+
+        .limit-control {
+          position: relative;
+          flex: 0 0 48px;
+          width: 48px;
+          height: 38px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .limit-inline-input {
+          display: none;
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 2;
+          box-sizing: border-box;
+          width: 56px;
+          height: 28px;
+          border: 0;
+          border-radius: 10px;
+          padding: 0 6px;
+          background: rgba(28, 28, 30, 0.96);
+          box-shadow:
+            0 10px 28px rgba(0, 0, 0, 0.28),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.96);
+          text-align: center;
+          font: 700 13px/1 "SF Pro Text", "Segoe UI", sans-serif;
+          outline: none;
+        }
+
+        .limit-inline-input:focus {
+          box-shadow:
+            0 10px 28px rgba(0, 0, 0, 0.28),
+            inset 0 0 0 1px rgba(10, 132, 255, 0.92);
+        }
+
+        .limit-control[data-editing="true"] .icon-button {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .limit-control[data-editing="true"] .limit-inline-input {
+          display: block;
         }
 
         .badge {
           position: absolute;
-          right: 2px;
-          bottom: 2px;
+          right: 8px;
+          bottom: 8px;
+          z-index: 1;
           min-width: 13px;
           height: 13px;
           padding: 0 3px;
@@ -527,9 +639,12 @@
           ${createIcon("ab")}
           <span id="abBadge" class="badge" hidden>AB</span>
         </button>
-        <button id="limitButton" class="icon-button" type="button" aria-label="Cycle loop limit">
-          <span id="limitLabel" class="limit-label">∞</span>
-        </button>
+        <div id="limitControl" class="limit-control">
+          <button id="limitButton" class="icon-button" type="button" aria-label="Set loop count">
+            <span id="limitLabel" class="limit-label">∞</span>
+          </button>
+          <input id="limitInput" class="limit-inline-input" type="text" inputmode="numeric" aria-label="Loop count" />
+        </div>
         <button id="loopToggle" class="icon-button" type="button" aria-label="Toggle loop">
           ${createIcon("loop")}
         </button>
@@ -545,19 +660,20 @@
       loopToggle: shadowRoot.getElementById("loopToggle"),
       abButton: shadowRoot.getElementById("abButton"),
       abBadge: shadowRoot.getElementById("abBadge"),
+      limitControl: shadowRoot.getElementById("limitControl"),
       limitButton: shadowRoot.getElementById("limitButton"),
       limitLabel: shadowRoot.getElementById("limitLabel"),
+      limitInput: shadowRoot.getElementById("limitInput"),
     };
 
     bindButtonAction(elements.loopToggle, () => {
       void toggleLoopEnabled();
     });
     bindButtonAction(elements.abButton, () => {
-      toggleAbPopover();
+      void toggleAbPopover();
     });
-    bindButtonAction(elements.limitButton, () => {
-      void cycleLoopLimit();
-    });
+    bindLimitButtonAction(elements.limitButton);
+    bindLoopCountInput(elements.limitInput);
 
     runtime.controlElements = elements;
   }
@@ -570,9 +686,9 @@
         }
 
         .popover {
-          width: 248px;
-          padding: 12px;
-          border-radius: 16px;
+          width: 220px;
+          padding: 10px 14px;
+          border-radius: 14px;
           background: rgba(28, 28, 30, 0.96);
           color: rgba(255, 255, 255, 0.95);
           box-shadow:
@@ -582,46 +698,38 @@
           pointer-events: auto;
         }
 
-        .popover-title {
-          font: 700 13px/1.2 "SF Pro Display", "Segoe UI", sans-serif;
-          margin-bottom: 10px;
+        .ab-row + .ab-row {
+          margin-top: 6px;
         }
 
-        .popover-line {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 10px;
-          font: 12px/1.35 "SF Pro Text", "Segoe UI", sans-serif;
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .popover-line + .popover-line {
-          margin-top: 8px;
-        }
-
-        .time-field {
+        .ab-grid {
           display: grid;
-          justify-items: end;
-          gap: 8px;
-          min-width: 138px;
-        }
-
-        .time-row {
-          display: flex;
+          grid-template-columns: 36px minmax(0, 1fr) 60px;
           align-items: center;
           gap: 8px;
         }
 
+        .ab-label {
+          display: inline-flex;
+          align-items: center;
+          color: rgba(255, 255, 255, 0.76);
+          font: 700 11px/1 "SF Pro Text", "Segoe UI", sans-serif;
+          text-transform: uppercase;
+        }
+
         .time-input {
-          width: 92px;
+          box-sizing: border-box;
+          width: 100%;
+          min-width: 0;
+          height: 34px;
           border: 0;
-          border-radius: 10px;
-          padding: 7px 9px;
+          border-radius: 9px;
+          padding: 0 8px;
           background: rgba(255, 255, 255, 0.08);
           color: rgba(255, 255, 255, 0.96);
-          text-align: right;
-          font: 600 12px/1 "SF Pro Text", "Segoe UI", sans-serif;
+          text-align: center;
+          font: 700 12px/1 "SF Pro Text", "Segoe UI", sans-serif;
+          line-height: 34px;
           outline: none;
         }
 
@@ -644,31 +752,45 @@
           opacity: 0.4;
         }
 
-        .controls-row {
+        .popover-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-top: 10px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          font: 12px/1.3 "SF Pro Text", "Segoe UI", sans-serif;
+          color: rgba(255, 255, 255, 0.78);
+        }
+
+        .status-block {
           display: grid;
-          grid-template-columns: 1fr;
-          gap: 8px;
-          margin-top: 12px;
+          gap: 2px;
+        }
+
+        .status-label {
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.48);
+        }
+
+        .status-value {
+          color: rgba(255, 255, 255, 0.95);
+          font-weight: 700;
         }
 
         .mini-button {
           border: 0;
-          border-radius: 12px;
-          min-height: 32px;
-          padding: 8px 10px;
+          border-radius: 10px;
+          min-height: 28px;
+          padding: 7px 9px;
           background: rgba(255, 255, 255, 0.08);
           color: rgba(255, 255, 255, 0.94);
-          font: 600 12px/1 "SF Pro Text", "Segoe UI", sans-serif;
+          font: 600 11px/1 "SF Pro Text", "Segoe UI", sans-serif;
           cursor: pointer;
           pointer-events: auto;
-        }
-
-        .mini-button--ghost {
-          min-height: 28px;
-          padding: 6px 8px;
-          border-radius: 10px;
-          background: rgba(255, 255, 255, 0.06);
-          font-size: 11px;
         }
 
         .mini-button:hover {
@@ -676,8 +798,7 @@
         }
 
         .mini-button--danger {
-          grid-column: 1 / -1;
-          background: rgba(255, 69, 58, 0.14);
+          background: rgba(255, 69, 58, 0.16);
           color: rgba(255, 133, 129, 1);
         }
 
@@ -686,40 +807,25 @@
         }
       </style>
       <div class="popover">
-        <div class="popover-title">A-B Loop</div>
-        <div class="popover-line">
-          <span>A Start</span>
-          <div class="time-field">
-            <div class="time-row">
-              <input id="startInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
-              <button id="startNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
-            </div>
-            <input id="startSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" />
+        <div class="ab-row">
+          <div class="ab-grid">
+            <span class="ab-label">Start</span>
+            <input id="startSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Start slider" />
+            <input id="startInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" aria-label="Start time" />
           </div>
         </div>
-        <div class="popover-line">
-          <span>B End</span>
-          <div class="time-field">
-            <div class="time-row">
-              <input id="endInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
-              <button id="endNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
-            </div>
-            <input id="endSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" />
+        <div class="ab-row">
+          <div class="ab-grid">
+            <span class="ab-label">End</span>
+            <input id="endSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" aria-label="End slider" />
+            <input id="endInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" aria-label="End time" />
           </div>
         </div>
-        <div class="popover-line">
-          <span>Duration</span>
-          <strong id="durationLabel">--:--</strong>
-        </div>
-        <div class="popover-line">
-          <span>Mode</span>
-          <strong id="modeLabel">Off</strong>
-        </div>
-        <div class="popover-line">
-          <span>Loops</span>
-          <strong id="progressLabel">0 / ∞</strong>
-        </div>
-        <div class="controls-row">
+        <div class="popover-footer">
+          <div class="status-block">
+            <span class="status-label">Loops</span>
+            <strong id="progressLabel" class="status-value">0 / ∞</strong>
+          </div>
           <button id="clearAbButton" class="mini-button mini-button--danger" type="button">Clear A-B</button>
         </div>
       </div>
@@ -732,12 +838,8 @@
     const elements = {
       startInput: shadowRoot.getElementById("startInput"),
       startSlider: shadowRoot.getElementById("startSlider"),
-      startNowButton: shadowRoot.getElementById("startNowButton"),
       endInput: shadowRoot.getElementById("endInput"),
       endSlider: shadowRoot.getElementById("endSlider"),
-      endNowButton: shadowRoot.getElementById("endNowButton"),
-      durationLabel: shadowRoot.getElementById("durationLabel"),
-      modeLabel: shadowRoot.getElementById("modeLabel"),
       progressLabel: shadowRoot.getElementById("progressLabel"),
       clearAbButton: shadowRoot.getElementById("clearAbButton"),
     };
@@ -749,14 +851,14 @@
     bindTimeInput(elements.endInput, "end");
     bindTimeSlider(elements.startSlider, "start");
     bindTimeSlider(elements.endSlider, "end");
-    bindButtonAction(elements.startNowButton, () => {
-      void setAbPointFromCurrent("start");
-    });
-    bindButtonAction(elements.endNowButton, () => {
-      void setAbPointFromCurrent("end");
-    });
 
     runtime.abPopoverElements = elements;
+  }
+
+  function bindLimitButtonAction(element) {
+    bindButtonAction(element, () => {
+      openLimitEditor();
+    });
   }
 
   function bindButtonAction(element, handler) {
@@ -803,6 +905,39 @@
     });
     element.addEventListener("blur", () => {
       void applyTimeInput(kind);
+    });
+  }
+
+  function bindLoopCountInput(element) {
+    element.addEventListener("pointerdown", stopInteractionPropagation, true);
+    element.addEventListener("mousedown", stopInteractionPropagation, true);
+    element.addEventListener("click", stopInteractionPropagation);
+    element.addEventListener("focus", () => {
+      setTimeout(() => {
+        element.select();
+      }, 0);
+    });
+    element.addEventListener("input", (event) => {
+      stopInteractionPropagation(event);
+      const digitsOnly = element.value.replace(/\D/g, "").slice(0, 4);
+      if (digitsOnly !== element.value) {
+        element.value = digitsOnly;
+      }
+    });
+    element.addEventListener("keydown", (event) => {
+      stopInteractionPropagation(event);
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        void applyLimitInput();
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePopovers();
+      }
+    });
+    element.addEventListener("blur", () => {
+      void applyLimitInput();
     });
   }
 
@@ -922,6 +1057,39 @@
     runtime.abPopoverHost.style.top = "auto";
     runtime.abPopoverHost.style.right = String(rightOffset) + "px";
     runtime.abPopoverHost.style.bottom = String(bottomOffset) + "px";
+  }
+
+
+  function openLimitEditor() {
+    if (!runtime.controlElements) {
+      return;
+    }
+
+    runtime.openPopover = "limit";
+    runtime.shouldCloseAbPopoverOnLeave = false;
+    removeAbPopoverHost();
+    runtime.controlElements.limitControl.setAttribute("data-editing", "true");
+    runtime.controlElements.limitInput.value =
+      getDisplayedLoopCount(runtime.persistedState) === null
+        ? ""
+        : String(getDisplayedLoopCount(runtime.persistedState));
+    updateControls();
+
+    setTimeout(() => {
+      if (!runtime.controlElements || runtime.openPopover !== "limit") {
+        return;
+      }
+
+      runtime.controlElements.limitInput.focus();
+    }, 0);
+  }
+
+  function closeLimitEditor() {
+    if (!runtime.controlElements) {
+      return;
+    }
+
+    runtime.controlElements.limitControl.setAttribute("data-editing", "false");
   }
 
   function removeControls() {
@@ -1094,6 +1262,7 @@
     const activeMode = loopEngine.getActiveLoopMode(state);
     const hasValidAbLoop = loopEngine.hasValidAbLoop(state);
     const loopLimit = loopEngine.getNormalizedLoopLimit(state);
+    const displayedLoopCount = getDisplayedLoopCount(state);
     const isInfiniteMode = activeMode === "full" && loopLimit === null;
     const isLimitedLoopMode = state.fullLoopEnabled && loopLimit !== null;
     const isAbMode = activeMode === "ab";
@@ -1111,23 +1280,20 @@
     runtime.controlElements.limitButton.setAttribute("data-active", isLimitedLoopMode ? "true" : "false");
     runtime.controlElements.limitButton.setAttribute(
       "title",
-      "Loop limit: " + (loopLimit === null ? "infinite" : String(loopLimit))
+      "Loop count: " + (displayedLoopCount === null ? "unset" : String(displayedLoopCount))
     );
-    runtime.controlElements.limitLabel.textContent = loopLimit === null ? "∞" : String(loopLimit);
+    runtime.controlElements.limitLabel.textContent = displayedLoopCount === null ? "∞" : String(displayedLoopCount);
+    runtime.controlElements.limitControl.setAttribute("data-editing", runtime.openPopover === "limit" ? "true" : "false");
 
     if (runtime.abPopoverElements && runtime.abPopoverShadowRoot) {
-      const abDuration = loopEngine.hasValidAbLoop(state)
-        ? Math.max(0, state.endTime - state.startTime)
-        : null;
-
       syncAbPopoverTimeControl("start");
       syncAbPopoverTimeControl("end");
-
-      runtime.abPopoverElements.durationLabel.textContent = shared.formatTime(abDuration);
-      runtime.abPopoverElements.modeLabel.textContent =
-        activeMode === "ab" ? "A-B" : activeMode === "full" ? "Infinite" : "Off";
       runtime.abPopoverElements.progressLabel.textContent =
-        String(state.completedLoops || 0) + " / " + (loopLimit === null ? "∞" : String(loopLimit));
+        displayedLoopCount === null ? "∞" : String(displayedLoopCount);
+    }
+
+    if (runtime.openPopover !== "limit" || runtime.controlShadowRoot.activeElement !== runtime.controlElements.limitInput) {
+      runtime.controlElements.limitInput.value = displayedLoopCount === null ? "" : String(displayedLoopCount);
     }
 
     if (runtime.openPopover === "ab") {
@@ -1140,15 +1306,30 @@
       return;
     }
 
+    if (runtime.openPopover === "limit") {
+      closeLimitEditor();
+    }
+
     runtime.openPopover = "";
     runtime.shouldCloseAbPopoverOnLeave = false;
     removeAbPopoverHost();
     updateControls();
   }
 
-  function toggleAbPopover() {
+  async function toggleAbPopover() {
     runtime.shouldCloseAbPopoverOnLeave = false;
     runtime.openPopover = runtime.openPopover === "ab" ? "" : "ab";
+    closeLimitEditor();
+
+    const activeMode = loopEngine.getActiveLoopMode(runtime.persistedState);
+    const loopLimit = loopEngine.getNormalizedLoopLimit(runtime.persistedState);
+
+    if (runtime.openPopover === "ab" && activeMode === "full" && loopLimit === null) {
+      runtime.persistedState = loopEngine.toggleInfiniteLoop(runtime.persistedState);
+      applyLoopSettingsToCurrentVideo();
+      await persistCurrentState();
+    }
+
     if (runtime.openPopover === "ab") {
       ensureAbPopoverHost();
       syncAbPopoverPosition();
@@ -1169,8 +1350,19 @@
       return;
     }
 
+    if (runtime.openPopover === "ab") {
+      closePopovers();
+    }
+
     runtime.isTogglePending = true;
-    runtime.persistedState = loopEngine.toggleInfiniteLoop(runtime.persistedState);
+
+    if (loopEngine.hasValidAbLoop(runtime.persistedState)) {
+      runtime.persistedState = loopEngine.clearAbLoop(runtime.persistedState);
+      runtime.persistedState = loopEngine.enableInfiniteLoop(runtime.persistedState);
+      closePopovers();
+    } else {
+      runtime.persistedState = loopEngine.toggleInfiniteLoop(runtime.persistedState);
+    }
     setDebugStatus("toggle:loop", "mode=" + loopEngine.getActiveLoopMode(runtime.persistedState));
     applyLoopSettingsToCurrentVideo();
     updateControls();
@@ -1189,6 +1381,7 @@
     }
 
     runtime.shouldCloseAbPopoverOnLeave = false;
+    const hadValidAbLoop = loopEngine.hasValidAbLoop(runtime.persistedState);
 
     const normalizedTime = clampAbTimeToDuration(seconds);
 
@@ -1208,7 +1401,7 @@
     runtime.persistedState = loopEngine.applyAbLoopInput(runtime.persistedState);
     resetProgressAndNormalize();
 
-    if (loopEngine.hasValidAbLoop(runtime.persistedState)) {
+    if (!hadValidAbLoop && loopEngine.hasValidAbLoop(runtime.persistedState)) {
       runtime.currentVideo.currentTime = runtime.persistedState.startTime;
     }
 
@@ -1236,15 +1429,6 @@
     await commitAbPoint(kind, parsedTime);
   }
 
-  async function setAbPointFromCurrent(kind) {
-    if (!runtime.currentVideo || !runtime.abPopoverElements) {
-      return;
-    }
-
-    const currentTime = Math.max(runtime.currentVideo.currentTime || 0, 0);
-    await commitAbPoint(kind, currentTime);
-  }
-
   async function applyTimeInput(kind) {
     await setAbPoint(kind);
   }
@@ -1258,25 +1442,43 @@
     await commitAbPoint(kind, Number(controls.slider.value));
   }
 
-  async function clearAbLoop() {
-    runtime.persistedState.startTime = null;
-    runtime.persistedState.endTime = null;
-    runtime.persistedState.abLoopEnabled = false;
-    runtime.shouldCloseAbPopoverOnLeave = true;
-    resetProgressAndNormalize();
-    setDebugStatus("ab:clear");
-    updateControls();
+  async function applyLimitInput() {
+    if (!runtime.controlElements || runtime.openPopover !== "limit") {
+      return;
+    }
+
+    const rawValue = runtime.controlElements.limitInput.value.trim();
+
+    if (!rawValue) {
+      closePopovers();
+      return;
+    }
+
+    const nextLimit = Number(rawValue);
+    if (!Number.isInteger(nextLimit) || nextLimit < 0) {
+      closePopovers();
+      return;
+    }
+
+    if (nextLimit === 0) {
+      runtime.persistedState.fullLoopEnabled = false;
+      runtime.persistedState.loopLimit = null;
+      runtime.persistedState.completedLoops = 0;
+    } else {
+      runtime.persistedState = loopEngine.applyLoopLimitSelection(runtime.persistedState, nextLimit);
+      setDebugStatus("limit:set", String(nextLimit));
+    }
+
+    applyLoopSettingsToCurrentVideo();
+    closePopovers();
     await persistCurrentState();
   }
 
-  async function cycleLoopLimit() {
-    const currentLimit = loopEngine.getNormalizedLoopLimit(runtime.persistedState);
-    const currentIndex = LOOP_LIMIT_OPTIONS.findIndex((option) => option === currentLimit);
-    const nextOption = LOOP_LIMIT_OPTIONS[(currentIndex + 1) % LOOP_LIMIT_OPTIONS.length];
-
-    runtime.persistedState = loopEngine.applyLoopLimitSelection(runtime.persistedState, nextOption);
-    setDebugStatus("limit:set", nextOption === null ? "∞" : String(nextOption));
-    applyLoopSettingsToCurrentVideo();
+  async function clearAbLoop() {
+    runtime.persistedState = loopEngine.clearAbLoop(runtime.persistedState);
+    runtime.shouldCloseAbPopoverOnLeave = true;
+    resetProgressAndNormalize();
+    setDebugStatus("ab:clear");
     updateControls();
     await persistCurrentState();
   }
@@ -1418,6 +1620,11 @@
 
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
     if (path.includes(runtime.controlHost) || path.includes(runtime.abPopoverHost)) {
+      return;
+    }
+
+    if (runtime.openPopover === "limit") {
+      void applyLimitInput();
       return;
     }
 

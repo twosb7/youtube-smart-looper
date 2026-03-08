@@ -22,8 +22,8 @@ popup은 보조 UI이고, 실제 동작과 메인 UI는 content script가 담당
 
 가장 쉬운 방법은 GitHub Release에서 ZIP을 받아서 설치하는 것입니다.
 
-- Release 페이지: [v0.1.0](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.0)
-- ZIP 다운로드: [youtube-smart-looper-v0.1.0.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.0/youtube-smart-looper-v0.1.0.zip)
+- Release 페이지: [v0.1.1](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.1)
+- ZIP 다운로드: [youtube-smart-looper-v0.1.1.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.1/youtube-smart-looper-v0.1.1.zip)
 
 ### 주요 기능
 
@@ -119,8 +119,8 @@ The popup is secondary. The content script is the main UI and loop controller.
 
 The easiest way is to download the release ZIP and load it in Chrome.
 
-- Release page: [v0.1.0](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.0)
-- ZIP download: [youtube-smart-looper-v0.1.0.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.0/youtube-smart-looper-v0.1.0.zip)
+- Release page: [v0.1.1](https://github.com/twosb7/youtube-smart-looper/releases/tag/v0.1.1)
+- ZIP download: [youtube-smart-looper-v0.1.1.zip](https://github.com/twosb7/youtube-smart-looper/releases/download/v0.1.1/youtube-smart-looper-v0.1.1.zip)
 
 ### Features
 

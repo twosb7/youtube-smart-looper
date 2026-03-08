@@ -64,7 +64,8 @@
     const abLoopEnabledSource = Object.prototype.hasOwnProperty.call(source, "abLoopEnabled")
       ? source.abLoopEnabled
       : source.enabled;
-    const loopLimit = Number(source.loopLimit);
+    const hasLoopLimit = Object.prototype.hasOwnProperty.call(source, "loopLimit");
+    const loopLimit = hasLoopLimit ? Number(source.loopLimit) : null;
     const hasValidRange =
       startTime !== null &&
       endTime !== null &&
@@ -77,7 +78,10 @@
       abLoopEnabled: Boolean(abLoopEnabledSource) && hasValidRange,
       startTime,
       endTime,
-      loopLimit: Number.isFinite(loopLimit) && loopLimit >= 1 ? Math.floor(loopLimit) : null,
+      loopLimit:
+        hasLoopLimit && source.loopLimit !== null && Number.isFinite(loopLimit) && loopLimit >= 0
+          ? Math.floor(loopLimit)
+          : null,
       completedLoops: 0,
     };
   }

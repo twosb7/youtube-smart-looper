@@ -31,12 +31,12 @@
     return currentTime >= Math.max(0, duration - threshold);
   }
 
-  async function restartVideoFromBeginning(video) {
+  async function restartVideoAtTime(video, time) {
     if (!video) {
       return;
     }
 
-    video.currentTime = 0;
+    video.currentTime = Number.isFinite(time) ? Math.max(time, 0) : 0;
 
     if (typeof video.play !== "function") {
       return;
@@ -45,9 +45,14 @@
     await video.play();
   }
 
+  async function restartVideoFromBeginning(video) {
+    await restartVideoAtTime(video, 0);
+  }
+
   return {
     syncNativeLoop,
     shouldWrapToBeginning,
+    restartVideoAtTime,
     restartVideoFromBeginning,
   };
 });

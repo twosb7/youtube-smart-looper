@@ -28,8 +28,12 @@
   }
 
   function getNormalizedLoopLimit(state) {
-    const limit = Number(state && state.loopLimit);
-    if (!Number.isFinite(limit) || limit < 1) {
+    if (!state || state.loopLimit === null || typeof state.loopLimit === "undefined") {
+      return null;
+    }
+
+    const limit = Number(state.loopLimit);
+    if (!Number.isFinite(limit) || limit < 0) {
       return null;
     }
 
@@ -44,8 +48,13 @@
       ? options.thresholdSeconds
       : 0.2;
     const mode = getActiveLoopMode(state);
+    const loopLimit = getNormalizedLoopLimit(state);
 
     if (mode === "off") {
+      return null;
+    }
+
+    if (loopLimit === 0) {
       return null;
     }
 
@@ -75,8 +84,9 @@
 
     nextState.completedLoops = nextCompletedLoops;
 
-    if (loopLimit !== null && nextCompletedLoops >= loopLimit) {
-      nextState.fullLoopEnabled = false;
+    if (loopLimit !== null) {
+      const nextRemainingLoops = Math.max(loopLimit - 1, 0);
+      nextState.loopLimit = nextRemainingLoops;
     }
 
     return nextState;
@@ -84,6 +94,24 @@
 
   function resetLoopProgress(state) {
     return Object.assign({}, state, { completedLoops: 0 });
+  }
+
+  function clearAbLoop(state) {
+    return Object.assign({}, state, {
+      abLoopEnabled: false,
+      startTime: null,
+      endTime: null,
+      completedLoops: 0,
+    });
+  }
+
+  function enableInfiniteLoop(state) {
+    return Object.assign({}, state, {
+      fullLoopEnabled: true,
+      abLoopEnabled: false,
+      loopLimit: null,
+      completedLoops: 0,
+    });
   }
 
   function toggleInfiniteLoop(state) {
@@ -97,11 +125,7 @@
       return source;
     }
 
-    source.fullLoopEnabled = true;
-    source.abLoopEnabled = false;
-    source.loopLimit = null;
-    source.completedLoops = 0;
-    return source;
+    return enableInfiniteLoop(source);
   }
 
   function applyAbLoopInput(state) {
@@ -147,6 +171,8 @@
     shouldHandleWrapInTimeupdate,
     recordLoopIteration,
     resetLoopProgress,
+    clearAbLoop,
+    enableInfiniteLoop,
     toggleInfiniteLoop,
     applyAbLoopInput,
     applyLoopLimitSelection,

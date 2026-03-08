@@ -68,7 +68,24 @@ test("getWrapTarget returns 0 near full-video end when limit is active", () => {
   assert.strictEqual(target, 0);
 });
 
-test("recordLoopIteration turns loop off when the limit is reached", () => {
+test("getWrapTarget returns null when no remaining loops are left", () => {
+  const target = loopEngine.getWrapTarget({
+    state: {
+      fullLoopEnabled: true,
+      abLoopEnabled: false,
+      startTime: null,
+      endTime: null,
+      loopLimit: 0,
+    },
+    currentTime: 19.85,
+    duration: 20,
+    thresholdSeconds: 0.2,
+  });
+
+  assert.strictEqual(target, null);
+});
+
+test("recordLoopIteration decrements remaining loops", () => {
   const nextState = loopEngine.recordLoopIteration({
     fullLoopEnabled: true,
     abLoopEnabled: true,
@@ -79,12 +96,32 @@ test("recordLoopIteration turns loop off when the limit is reached", () => {
   });
 
   assert.deepStrictEqual(nextState, {
-    fullLoopEnabled: false,
+    fullLoopEnabled: true,
     abLoopEnabled: true,
     startTime: 2,
     endTime: 4,
-    loopLimit: 2,
+    loopLimit: 1,
     completedLoops: 2,
+  });
+});
+
+test("recordLoopIteration turns loop off when the remaining count reaches zero", () => {
+  const nextState = loopEngine.recordLoopIteration({
+    fullLoopEnabled: true,
+    abLoopEnabled: true,
+    startTime: 2,
+    endTime: 4,
+    loopLimit: 1,
+    completedLoops: 0,
+  });
+
+  assert.deepStrictEqual(nextState, {
+    fullLoopEnabled: true,
+    abLoopEnabled: true,
+    startTime: 2,
+    endTime: 4,
+    loopLimit: 0,
+    completedLoops: 1,
   });
 });
 
@@ -135,6 +172,46 @@ test("toggleInfiniteLoop turns infinite loop off when already infinite", () => {
     abLoopEnabled: false,
     startTime: null,
     endTime: null,
+    loopLimit: null,
+    completedLoops: 0,
+  });
+});
+
+test("clearAbLoop removes A-B markers and keeps unrelated loop state", () => {
+  const nextState = loopEngine.clearAbLoop({
+    fullLoopEnabled: true,
+    abLoopEnabled: true,
+    startTime: 12,
+    endTime: 18,
+    loopLimit: 3,
+    completedLoops: 2,
+  });
+
+  assert.deepStrictEqual(nextState, {
+    fullLoopEnabled: true,
+    abLoopEnabled: false,
+    startTime: null,
+    endTime: null,
+    loopLimit: 3,
+    completedLoops: 0,
+  });
+});
+
+test("enableInfiniteLoop promotes state into full infinite loop mode", () => {
+  const nextState = loopEngine.enableInfiniteLoop({
+    fullLoopEnabled: false,
+    abLoopEnabled: true,
+    startTime: 12,
+    endTime: 18,
+    loopLimit: 3,
+    completedLoops: 2,
+  });
+
+  assert.deepStrictEqual(nextState, {
+    fullLoopEnabled: true,
+    abLoopEnabled: false,
+    startTime: 12,
+    endTime: 18,
     loopLimit: null,
     completedLoops: 0,
   });

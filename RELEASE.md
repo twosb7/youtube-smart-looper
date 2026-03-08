@@ -3,7 +3,7 @@
 Recommended public release flow:
 
 1. Push the source repository to GitHub
-2. Create a GitHub Release such as `v0.1.0`
+2. Create a GitHub Release such as `v0.1.1`
 3. Attach one installable ZIP for Chrome manual loading
 4. Keep the repository source and the release ZIP aligned
 
@@ -12,7 +12,7 @@ Recommended public release flow:
 Recommended file name:
 
 ```text
-youtube-smart-looper-v0.1.0.zip
+youtube-smart-looper-v0.1.1.zip
 ```
 
 Recommended ZIP contents:
@@ -37,7 +37,7 @@ docs/
 ## Suggested GitHub Release Body
 
 ```text
-YouTube Smart Looper v0.1.0
+YouTube Smart Looper v0.1.1
 
 Features
 - Full-video infinite loop
@@ -75,5 +75,5 @@ Installation
 Run this from the project root after removing unwanted files from the archive input:
 
 ```bash
-zip -r youtube-smart-looper-v0.1.0.zip manifest.json popup.html styles assets src
+zip -r youtube-smart-looper-v0.1.1.zip manifest.json popup.html styles assets src
 ```

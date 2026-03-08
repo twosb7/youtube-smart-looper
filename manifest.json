@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Smart Looper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Minimal full-video looping for modern YouTube watch pages.",
   "background": {
     "service_worker": "src/background.js"
