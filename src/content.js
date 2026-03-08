@@ -85,6 +85,50 @@
       : null;
   }
 
+  function getSliderDurationLimit() {
+    const duration = getCurrentDuration();
+
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return null;
+    }
+
+    return Math.max(0, Math.floor(duration));
+  }
+
+  function getAbPopoverControlPair(kind) {
+    if (!runtime.abPopoverElements) {
+      return null;
+    }
+
+    return kind === "start"
+      ? {
+          input: runtime.abPopoverElements.startInput,
+          slider: runtime.abPopoverElements.startSlider,
+        }
+      : {
+          input: runtime.abPopoverElements.endInput,
+          slider: runtime.abPopoverElements.endSlider,
+        };
+  }
+
+  function getAbStateValue(kind) {
+    return kind === "start" ? runtime.persistedState.startTime : runtime.persistedState.endTime;
+  }
+
+  function clampAbTimeToDuration(value) {
+    const duration = getCurrentDuration();
+
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+
+    if (duration && Number.isFinite(duration)) {
+      return Math.min(Math.max(value, 0), duration);
+    }
+
+    return Math.max(value, 0);
+  }
+
   function readPersistedState(videoId) {
     if (!videoId) {
       return Promise.resolve(shared.createDefaultState());
@@ -545,7 +589,7 @@
 
         .popover-line {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 10px;
           font: 12px/1.35 "SF Pro Text", "Segoe UI", sans-serif;
@@ -557,6 +601,13 @@
         }
 
         .time-field {
+          display: grid;
+          justify-items: end;
+          gap: 8px;
+          min-width: 138px;
+        }
+
+        .time-row {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -577,6 +628,20 @@
         .time-input:focus {
           box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.92);
           background: rgba(255, 255, 255, 0.12);
+        }
+
+        .time-slider {
+          width: 100%;
+          height: 16px;
+          margin: 0;
+          accent-color: rgba(255, 69, 58, 0.92);
+          background: transparent;
+          cursor: pointer;
+        }
+
+        .time-slider:disabled {
+          cursor: not-allowed;
+          opacity: 0.4;
         }
 
         .controls-row {
@@ -625,15 +690,21 @@
         <div class="popover-line">
           <span>A Start</span>
           <div class="time-field">
-            <input id="startInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
-            <button id="startNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
+            <div class="time-row">
+              <input id="startInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
+              <button id="startNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
+            </div>
+            <input id="startSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" />
           </div>
         </div>
         <div class="popover-line">
           <span>B End</span>
           <div class="time-field">
-            <input id="endInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
-            <button id="endNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
+            <div class="time-row">
+              <input id="endInput" class="time-input" type="text" inputmode="numeric" placeholder="00:00" />
+              <button id="endNowButton" class="mini-button mini-button--ghost" type="button">Now</button>
+            </div>
+            <input id="endSlider" class="time-slider" type="range" min="0" max="0" step="1" value="0" />
           </div>
         </div>
         <div class="popover-line">
@@ -660,8 +731,10 @@
 
     const elements = {
       startInput: shadowRoot.getElementById("startInput"),
+      startSlider: shadowRoot.getElementById("startSlider"),
       startNowButton: shadowRoot.getElementById("startNowButton"),
       endInput: shadowRoot.getElementById("endInput"),
+      endSlider: shadowRoot.getElementById("endSlider"),
       endNowButton: shadowRoot.getElementById("endNowButton"),
       durationLabel: shadowRoot.getElementById("durationLabel"),
       modeLabel: shadowRoot.getElementById("modeLabel"),
@@ -674,6 +747,8 @@
     });
     bindTimeInput(elements.startInput, "start");
     bindTimeInput(elements.endInput, "end");
+    bindTimeSlider(elements.startSlider, "start");
+    bindTimeSlider(elements.endSlider, "end");
     bindButtonAction(elements.startNowButton, () => {
       void setAbPointFromCurrent("start");
     });
@@ -729,6 +804,30 @@
     element.addEventListener("blur", () => {
       void applyTimeInput(kind);
     });
+  }
+
+  function bindTimeSlider(element, kind) {
+    element.addEventListener("pointerdown", stopInteractionPropagation, true);
+    element.addEventListener("mousedown", stopInteractionPropagation, true);
+    element.addEventListener("click", stopInteractionPropagation);
+    element.addEventListener("input", (event) => {
+      stopInteractionPropagation(event);
+      previewSliderInput(kind);
+    });
+    element.addEventListener("change", (event) => {
+      stopInteractionPropagation(event);
+      void applySliderInput(kind);
+    });
+  }
+
+  function previewSliderInput(kind) {
+    const controls = getAbPopoverControlPair(kind);
+    if (!controls) {
+      return;
+    }
+
+    const sliderValue = Number(controls.slider.value);
+    controls.input.value = shared.formatTime(sliderValue);
   }
 
   function consumeInteraction(event) {
@@ -963,6 +1062,29 @@
     updateControls();
   }
 
+  function syncAbPopoverTimeControl(kind) {
+    const controls = getAbPopoverControlPair(kind);
+    if (!controls || !runtime.abPopoverShadowRoot) {
+      return;
+    }
+
+    const sliderLimit = getSliderDurationLimit();
+    const fallbackValue = kind === "start" ? 0 : sliderLimit || 0;
+    const stateValue = getAbStateValue(kind);
+    const sliderValue = Number.isFinite(stateValue)
+      ? Math.min(Math.max(Math.round(stateValue), 0), sliderLimit || 0)
+      : fallbackValue;
+
+    if (runtime.abPopoverShadowRoot.activeElement !== controls.input) {
+      controls.input.value = Number.isFinite(stateValue) ? shared.formatTime(stateValue) : "";
+    }
+
+    controls.slider.min = "0";
+    controls.slider.max = String(Math.max(sliderLimit || 0, 0));
+    controls.slider.value = String(sliderValue);
+    controls.slider.disabled = !Number.isFinite(sliderLimit) || sliderLimit <= 0;
+  }
+
   function updateControls() {
     if (!runtime.controlElements) {
       return;
@@ -998,13 +1120,8 @@
         ? Math.max(0, state.endTime - state.startTime)
         : null;
 
-      if (runtime.abPopoverShadowRoot.activeElement !== runtime.abPopoverElements.startInput) {
-        runtime.abPopoverElements.startInput.value = shared.formatTime(state.startTime);
-      }
-
-      if (runtime.abPopoverShadowRoot.activeElement !== runtime.abPopoverElements.endInput) {
-        runtime.abPopoverElements.endInput.value = shared.formatTime(state.endTime);
-      }
+      syncAbPopoverTimeControl("start");
+      syncAbPopoverTimeControl("end");
 
       runtime.abPopoverElements.durationLabel.textContent = shared.formatTime(abDuration);
       runtime.abPopoverElements.modeLabel.textContent =
@@ -1066,26 +1183,20 @@
     }
   }
 
-  async function setAbPoint(kind) {
+  async function commitAbPoint(kind, seconds) {
     if (!runtime.currentVideo || !runtime.abPopoverElements) {
       return;
     }
 
     runtime.shouldCloseAbPopoverOnLeave = false;
 
-    const inputElement = kind === "start" ? runtime.abPopoverElements.startInput : runtime.abPopoverElements.endInput;
-    const parsedTime = shared.parseTimeInput(inputElement.value);
-    const duration = getCurrentDuration();
+    const normalizedTime = clampAbTimeToDuration(seconds);
 
-    if (!Number.isFinite(parsedTime)) {
+    if (!Number.isFinite(normalizedTime)) {
       setDebugStatus("ab:invalid", kind);
       updateControls();
       return;
     }
-
-    const normalizedTime = duration && Number.isFinite(duration)
-      ? Math.min(Math.max(parsedTime, 0), duration)
-      : Math.max(parsedTime, 0);
 
     if (kind === "start") {
       runtime.persistedState.startTime = normalizedTime;
@@ -1109,20 +1220,42 @@
     await persistCurrentState();
   }
 
+  async function setAbPoint(kind) {
+    const controls = getAbPopoverControlPair(kind);
+    if (!controls) {
+      return;
+    }
+
+    const parsedTime = shared.parseTimeInput(controls.input.value);
+    if (!Number.isFinite(parsedTime)) {
+      setDebugStatus("ab:invalid", kind);
+      updateControls();
+      return;
+    }
+
+    await commitAbPoint(kind, parsedTime);
+  }
+
   async function setAbPointFromCurrent(kind) {
     if (!runtime.currentVideo || !runtime.abPopoverElements) {
       return;
     }
 
-    runtime.shouldCloseAbPopoverOnLeave = false;
     const currentTime = Math.max(runtime.currentVideo.currentTime || 0, 0);
-    const inputElement = kind === "start" ? runtime.abPopoverElements.startInput : runtime.abPopoverElements.endInput;
-    inputElement.value = shared.formatTime(currentTime);
-    await setAbPoint(kind);
+    await commitAbPoint(kind, currentTime);
   }
 
   async function applyTimeInput(kind) {
     await setAbPoint(kind);
+  }
+
+  async function applySliderInput(kind) {
+    const controls = getAbPopoverControlPair(kind);
+    if (!controls) {
+      return;
+    }
+
+    await commitAbPoint(kind, Number(controls.slider.value));
   }
 
   async function clearAbLoop() {
